@@ -39,7 +39,7 @@ overwrite_token_secret() {
 }
 
 # Ensure the datastore directory exists inside the static container layout.
-mkdir -p "${DATSTORE_PATH}/level1/level2/level3" "${DATSTORE_PATH}/level1-2"
+# mkdir -p "${DATSTORE_PATH}/level1/level2/level3" "${DATSTORE_PATH}/level1-2"
 chown -R backup:backup "${DATSTORE_PATH}" 2>/dev/null || true
 
 # Create the datastore if it is missing.

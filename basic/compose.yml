@@ -1,7 +1,7 @@
 services:
   pbs:
     build: .
-    image: dockurr/proxmox-backup:latest
+    image: ghcr.io/osshield/ephemeral-pbs:basic
     hostname: pbs.localhost
     ports:
       - "8007:8007"

@@ -34,6 +34,6 @@ jobs:
           file: ./basic/Dockerfile
           platforms: linux/amd64
           push: true
-          tags: ghcr.io/osshield/ephemeral-pbs:latest
+          tags: ghcr.io/osshield/ephemeral-pbs:basic
           cache-from: type=gha
           cache-to: type=gha,mode=max

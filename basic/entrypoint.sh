@@ -168,9 +168,8 @@ info "For support visit https://github.com/dockur/proxmox-backup"
 echo ""
 
 # Update password for root
-if [ -n "$PASSWORD_HASH" ]; then
-  printf 'root:%s\n' "$PASSWORD_HASH" | chpasswd -e
-else
+if [ -n "$PASSWORD" ]; then
+  echo "Setting root password to $PASSWORD"
   printf 'root:%s\n' "$PASSWORD" | chpasswd
 fi
 
