@@ -1,0 +1,13 @@
+services:
+  pbs:
+    build: .
+    image: dockurr/proxmox-backup:latest
+    hostname: pbs.localhost
+    ports:
+      - "8007:8007"
+    environment:
+      TZ: "Europe/Stockholm"
+      PASSWORD: "demo"
+      POSTFIX: "N"
+    # The static PBS filesystem is created inside the image itself.
+    # No tmpfs or bind-mounted config/data is required for the basic setup.
