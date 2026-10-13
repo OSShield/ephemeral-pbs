@@ -167,12 +167,6 @@ info "Starting Proxmox Backup Server for Docker v$(</etc/version)..."
 info "For support visit https://github.com/dockur/proxmox-backup"
 echo ""
 
-# Update password for root
-if [ -n "$PASSWORD" ]; then
-  echo "Setting root password to $PASSWORD"
-  printf 'root:%s\n' "$PASSWORD" | chpasswd
-fi
-
 # PBS prefers /run to be tmpfs, but the static build keeps its state inside the
 # container filesystem. Warn instead of hard-failing so this can run without
 # tmpfs if the host or orchestration does not provide it.
@@ -457,6 +451,11 @@ echo "Successfully started PBS!"
 
 if is_enabled "$BUILD"; then
   echo "Build mode enabled."
+  # Update password for root
+  if [ -n "$PASSWORD" ]; then
+    echo "Setting root password to $PASSWORD"
+    printf 'root:%s\n' "$PASSWORD" | chpasswd
+  fi
   /usr/local/bin/setup-static-pbs.sh
   exit 0
 else
