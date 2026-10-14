@@ -167,11 +167,11 @@ info "Starting Proxmox Backup Server for Docker v$(</etc/version)..."
 info "For support visit https://github.com/dockur/proxmox-backup"
 echo ""
 
-# PBS prefers /run to be tmpfs, but the static build keeps its state inside the
-# container filesystem. Warn instead of hard-failing so this can run without
-# tmpfs if the host or orchestration does not provide it.
+# PBS requires /run to be tmpfs, otherwise every login (web UI and API) fails
+# with 'path "/run/proxmox-backup/shmem" is not on tmpfs'. Warn instead of
+# hard-failing so the services still start.
 if ! grep -qE ' /run tmpfs ' /proc/mounts; then
-  warn "No tmpfs mounted for /run; continuing with the filesystem-backed static PBS layout."
+  warn "No tmpfs mounted for /run; PBS logins will fail. Run with '--tmpfs /run'."
 fi
 
 # If missing timezone and localtime set them.
@@ -447,6 +447,39 @@ fi
 
 echo "Successfully started PBS!"
 
+# Display the configured datastores, users and API tokens.
+#
+# Uses the REST API rather than proxmox-backup-manager, since the CLI refuses
+# to run when /run is not on tmpfs.
+show_pbs_summary() {
+  local api="https://localhost:${PORT:-8007}/api2/json"
+  local ticket users
+
+  ticket="$(curl -fsSk "$api/access/ticket" \
+    --data-urlencode "username=root@pam" \
+    --data-urlencode "password=${PASSWORD}" | jq -r '.data.ticket')" || return 1
+
+  echo ""
+  info "Datastores:"
+  curl -fsSk -b "PBSAuthCookie=${ticket}" "$api/config/datastore" \
+    | jq -r '.data[] | "  \(.name)\t\(.path)"' || return 1
+
+  users="$(curl -fsSk -b "PBSAuthCookie=${ticket}" "$api/access/users?include_tokens=1")" || return 1
+
+  echo ""
+  info "Users:"
+  printf '%s' "$users" \
+    | jq -r '.data[] | "  \(.userid)\tenabled=\(.enable // true)\t\(.comment // "")"'
+
+  echo ""
+  info "API tokens:"
+  printf '%s' "$users" \
+    | jq -r '.data[] | .tokens[]? | "  \(.tokenid)\tenabled=\(.enable // true)\t\(.comment // "")"'
+  echo ""
+
+  return 0
+}
+
 
 
 if is_enabled "$BUILD"; then
@@ -459,6 +492,8 @@ if is_enabled "$BUILD"; then
   /usr/local/bin/setup-static-pbs.sh
   exit 0
 else
+  show_pbs_summary || warn "Could not fetch PBS summary."
+
   while true; do
     sleep 5
 

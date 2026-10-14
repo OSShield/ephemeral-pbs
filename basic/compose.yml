@@ -9,5 +9,6 @@ services:
       TZ: "Europe/Stockholm"
       PASSWORD: "demo"
       POSTFIX: "N"
-    # The static PBS filesystem is created inside the image itself.
-    # No tmpfs or bind-mounted config/data is required for the basic setup.
+    # PBS refuses to work correctly (web UI and API) unless /run is on tmpfs.
+    tmpfs:
+      - /run

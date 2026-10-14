@@ -14,6 +14,14 @@ set -Eeuo pipefail
 BACKUP_AUTH_ID="${BACKUP_USER}@pbs"
 RESTORE_AUTH_ID="${RESTORE_USER}@pbs"
 DATSTORE_PATH="/var/lib/proxmox-backup/datastore"
+PBS_API_URL="https://localhost:${PORT:-8007}/api2/json"
+# Parents must be listed before their children.
+NAMESPACES=(
+  "level1"
+  "level1/level2"
+  "level1/level2/level3"
+  "level1-2"
+)
 
 fixed_token_hash() {
   local secret="$1"
@@ -38,6 +46,64 @@ overwrite_token_secret() {
   printf '%s' "$existing" | jq --arg key "$token_key" --arg value "$hash_value" '.[$key] = $value' > "$shadow_file"
 }
 
+# Log in as root@pam and store the ticket/CSRF token for subsequent API calls.
+api_login() {
+  local response
+
+  response="$(curl -fsSk "${PBS_API_URL}/access/ticket" \
+    --data-urlencode "username=root@pam" \
+    --data-urlencode "password=${PASSWORD}")"
+
+  API_TICKET="$(printf '%s' "$response" | jq -r '.data.ticket')"
+  API_CSRF="$(printf '%s' "$response" | jq -r '.data.CSRFPreventionToken')"
+}
+
+create_namespace() {
+  local store="$1"
+  local ns="$2"
+  local name="${ns##*/}"
+  local parent=""
+
+  [[ "$ns" == */* ]] && parent="${ns%/*}"
+
+  if curl -fsSk "${PBS_API_URL}/admin/datastore/${store}/namespace" \
+      -b "PBSAuthCookie=${API_TICKET}" \
+      | jq -e --arg ns "$ns" '.data[] | select(.ns == $ns)' >/dev/null 2>&1; then
+    echo "Namespace ${store}:${ns} already exists."
+    return 0
+  fi
+
+  curl -fsSk -X POST "${PBS_API_URL}/admin/datastore/${store}/namespace" \
+    -b "PBSAuthCookie=${API_TICKET}" \
+    -H "CSRFPreventionToken: ${API_CSRF}" \
+    --data-urlencode "name=${name}" \
+    ${parent:+--data-urlencode "parent=${parent}"} >/dev/null
+}
+
+# Print the HTTP status for an authenticated API call using the given token.
+token_auth_status() {
+  local token_id="$1"
+  local secret="$2"
+
+  curl -sk -o /dev/null -w '%{http_code}' \
+    -H "Authorization: PBSAPIToken=${token_id}:${secret}" \
+    "${PBS_API_URL}/version"
+}
+
+verify_token() {
+  local token_id="$1"
+  local secret="$2"
+  local status
+
+  status="$(token_auth_status "$token_id" "$secret")"
+  if [ "$status" != "200" ]; then
+    echo "ERROR: Token ${token_id} failed to authenticate (HTTP ${status})." >&2
+    return 1
+  fi
+
+  echo "Token ${token_id} authenticated successfully."
+}
+
 # Ensure the datastore directory exists inside the static container layout.
 # NO, do not do this.
 # mkdir -p "${DATSTORE_PATH}/level1/level2/level3" "${DATSTORE_PATH}/level1-2"
@@ -48,6 +114,13 @@ echo "Creating datastore at ${DATSTORE_PATH}..."
 if ! proxmox-backup-manager datastore list --output-format json 2>/dev/null | jq -e --arg name "$DATASTORE_NAME" '.[] | select(.name == $name)' >/dev/null 2>&1; then
   proxmox-backup-manager datastore create "$DATASTORE_NAME" "$DATSTORE_PATH" >/dev/null
 fi
+
+echo "Creating namespaces in datastore ${DATASTORE_NAME}..."
+# Namespaces must be created through the PBS API, not by creating directories on disk.
+api_login
+for ns in "${NAMESPACES[@]}"; do
+  create_namespace "$DATASTORE_NAME" "$ns"
+done
 
 echo "Ensuring static test users exist..."
 # Create the required static test users. PBS expects user ids in the form user@realm.
@@ -78,7 +151,17 @@ proxmox-backup-manager acl update / DatastoreBackup --auth-id "${BACKUP_AUTH_ID}
 proxmox-backup-manager acl update / DatastoreBackup --auth-id "${RESTORE_AUTH_ID}!restore"
 proxmox-backup-manager acl update / DatastoreReader --auth-id "${RESTORE_AUTH_ID}!restore"
 
-# DO NOT DO THIS, PBS does this all by itself
+echo "Verifying API token authentication..."
+# Sanity check: a wrong secret must be rejected, otherwise the checks below prove nothing.
+if [ "$(token_auth_status "${BACKUP_AUTH_ID}!backup" "invalid-secret")" = "200" ]; then
+  echo "ERROR: Token authentication accepted an invalid secret." >&2
+  exit 1
+fi
+verify_token "${BACKUP_AUTH_ID}!backup" "$BACKUP_TOKEN_SECRET"
+verify_token "${RESTORE_AUTH_ID}!restore" "$RESTORE_TOKEN_SECRET"
+
+# DO NOT DO THIS, PBS does this all by itself and will throw errors if you mess with the filesystem
+# Instead, we need to create namespaces via the rest api
 # # The static layout intentionally creates the filesystem namespaces that correspond to
 # # the PBS datastore structure, without depending on the Python client runtime.
 # for ns in "${DATSTORE_PATH}/level1" "${DATSTORE_PATH}/level1/level2" "${DATSTORE_PATH}/level1/level2/level3" "${DATSTORE_PATH}/level1-2"; do
