@@ -30,13 +30,13 @@ Namespaces:
 
 Users:
 - root (Root User)
-- backupuser@pam (Password backupuser)
+- backupuser@pbs (Password backupuser)
   - User permissions: Datastore.Backup on all levels in datastore data
   - Tokens (same permissions as user backupuser)
-    - backupuser@pam!backup: 12345678-1234-1234-1234-1234567890ab
-- restoreuser@pam (Password restoreuser)
+    - backupuser@pbs!backup: 12345678-1234-1234-1234-1234567890ab
+- restoreuser@pbs (Password restoreuser)
   - User permissions: Datastore.Reader on all levels in datastore data
   - Tokens (same permissions as user restoreuser)
-    - restoreuser@pam!restore: 12345678-1234-1234-1234-1234567890ab
+    - restoreuser@pbs!restore: 12345678-1234-1234-1234-1234567890ab
 ```
 
