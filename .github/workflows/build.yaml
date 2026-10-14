@@ -27,7 +27,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push AMD64 image
+      - name: Build and push AMD64 basic image
         uses: docker/build-push-action@v5
         with:
           context: ./basic
@@ -35,5 +35,16 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: ghcr.io/osshield/ephemeral-pbs:basic
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      - name: Build and push AMD64 advanced image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./advanced
+          file: ./advanced/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ghcr.io/osshield/ephemeral-pbs:advanced
           cache-from: type=gha
           cache-to: type=gha,mode=max

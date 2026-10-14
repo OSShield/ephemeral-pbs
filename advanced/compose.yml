@@ -1,0 +1,17 @@
+services:
+  pbs-advanced:
+    build: .
+    image: ghcr.io/osshield/ephemeral-pbs:advanced
+    hostname: pbs-advanced.localhost
+    ports:
+      - "8008:8007"
+    environment:
+      TZ: "Europe/Stockholm"
+      PASSWORD: "demo"
+      POSTFIX: "N"
+    volumes:
+      # The config is applied on every start; edit it and restart the container.
+      - ./config.yml:/etc/pbs-config.yml:ro
+    # PBS refuses to work correctly (web UI and API) unless /run is on tmpfs.
+    tmpfs:
+      - /run

@@ -40,3 +40,33 @@ Users:
     - restoreuser@pbs!restore: 12345678-1234-1234-1234-1234567890ab
 ```
 
+## Advanced container
+The advanced container reads YAML from `/etc/pbs-static-config.yml` and creates the namespace and user model at startup.
+
+Example:
+
+```yaml
+default_token_secret: "12345678-1234-1234-1234-1234567890ab"
+
+namespaces:
+  level1:
+    level2:
+      level3:
+  level1-2:
+
+users:
+  userA:
+    namespaces: [level1, level1-2]
+    permissions: [DatastoreBackup]
+    token:
+      - useratoken
+    token_secret: "12345678-1234-1234-1234-1234567890ab"
+
+  userB:
+    namespaces: []
+    permissions: [DatastoreRead]
+    token:
+      - userbtoken
+```
+
+For more information, see the readme in the advanced directory
