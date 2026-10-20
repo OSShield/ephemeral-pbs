@@ -414,6 +414,18 @@ rm -f /proxmox.end
 _trap "cleanup 0" SIGTERM SIGINT
 
 # Start PBS services.
+# PBS puts the node's FQDN into its self-signed certificate's CN, which X.509 caps
+# at 64 characters. Long host names (CI builders) make proxmox-backup-api exit with
+# "ASN1_mbstring_ncopy:string too long", so create the certificate with a short CN.
+if [ ! -s /etc/proxmox-backup/proxy.pem ]; then
+  cn="$(hostname -s | cut -c1-48)"
+  openssl req -x509 -newkey rsa:4096 -nodes -days 3650 \
+    -subj "/O=Proxmox Backup Server/CN=${cn:-pbs}" \
+    -keyout /etc/proxmox-backup/proxy.key -out /etc/proxmox-backup/proxy.pem 2>/dev/null
+  chown root:"$user" /etc/proxmox-backup/proxy.key /etc/proxmox-backup/proxy.pem
+  chmod 0640 /etc/proxmox-backup/proxy.key /etc/proxmox-backup/proxy.pem
+fi
+
 echo "Starting Proxmox Backup API..."
 
 api_pid_file="/run/proxmox-backup/api.pid"
